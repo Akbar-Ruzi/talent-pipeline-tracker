@@ -93,12 +93,16 @@ Restart `npm run dev` after changing `.env.local`: it is only read at startup. `
 
 Every response body is checked at runtime against its TypeScript type, so a malformed response shows an error instead of breaking the page.
 
-### Test on your phone
+### Testing the dev site on your phone
 
-The dev server is reachable from other devices on your network, so you can open it on a real phone while you develop.
+1. Connect the phone and the computer to the **same Wi-Fi**.
+2. Find your computer's local IP address (it usually looks like `192.168.x.x`):
 
-1. Connect the phone to the same Wi-Fi as your computer.
-2. Find your computer's local IP address: run `ipconfig` on Windows (the Wi-Fi adapter's IPv4 address) or `ipconfig getifaddr en0` on macOS. It usually looks like `192.168.x.x`.
+   ```bash
+   ipconfig                # Windows: the Wi-Fi adapter's IPv4 address
+   ipconfig getifaddr en0  # macOS
+   ```
+
 3. Add it to `.env.local` (see `.env.example`):
 
    ```bash
@@ -106,10 +110,15 @@ The dev server is reachable from other devices on your network, so you can open 
    ```
 
    Next.js blocks dev-only files for any address other than `localhost`. Without this setting, the page opens on the phone but React never loads, so the candidate list stays on its loading state.
-4. Restart `npm run dev` (`.env.local` and `next.config.ts` are read only at startup).
-5. On the phone, open `http://<your-ip>:3000`. `npm run dev` also prints this address as "Network".
+4. Start (or restart) the dev server so other devices on your network can reach it. `.env.local` and `next.config.ts` are read only at startup:
 
-If the page does not load, allow Node.js through your firewall for private networks. If your router gives your computer a new IP, update `DEV_ORIGIN`.
+   ```bash
+   npm run dev -- --hostname 0.0.0.0
+   ```
+
+5. On the phone, open `http://<your-ip>:3000`. The terminal also prints this address as "Network".
+
+If the page does not load, allow Node.js through your firewall for private networks. If your router gives your computer a new IP, update `DEV_ORIGIN` and restart the dev server.
 
 Hydration warnings in the terminal that mention attributes such as `__gcruniqueid` come from the phone browser's autofill or extensions, not from the app. A private tab does not show them.
 
@@ -140,7 +149,7 @@ To use DevTools on an Android phone (for example Network → Offline), connect i
 ## Known limitations
 
 - **No authentication.** Anyone with the URL can view and change candidates; the course API has none.
-- **Shared mock API.** The backend is shared by every company context in the course, so other students' changes (and test candidates) appear in the list.
+- **Shared mock API.** The backend is shared across course participants, so changes made by other users and test candidates may appear in the candidate list.
 - **No candidate deletion or note editing.** The app can create and edit candidates and add and delete notes, but not delete a candidate or edit a note.
 - **Notes have no author.** The API stores only the text and date, so cards show those.
 - **New candidates may not be on the current page.** After a create, the list refetches; where the new row lands depends on the API's sort order and the active filters (new candidates are always Received / Pending review).
