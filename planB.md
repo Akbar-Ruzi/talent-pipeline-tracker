@@ -84,16 +84,16 @@ Reset Demo removes only keys starting with `talent-tracker:`.
 2 read local candidates ──────┤    cached in a context; refetched only on Retry)
 3 normalize (add source)      │
 4 merge  [...local, ...academy] (IDs cannot collide)
-5 search   name or email, case-insensitive substring (trimmed)
+5 search   name or email, case- and accent-insensitive substring (trimmed)
 6 filter   status, stage
-7 sort     the API's default order (Task 1.4), applied to the merged list
+7 sort     local first (newest applied_at first), then academy in API order (Task 1.4)
 8 page     table: slice(page)   |   feed: first N, N += PAGE_SIZE on scroll
 9 render   existing components, plus a source badge
 ```
 
 Steps 3–7 are one pure function, `queryCandidates(all, filters)`, in `lib/candidates/query.ts`, unit-tested.
 
-**Academy fetch-all:** request `limit = 100` (or the API's maximum, Task 1.4) and keep fetching pages until `collected >= total`, with a safety cap of 20 pages. If the cap is hit, show "Showing the first N academy candidates" instead of claiming complete counts.
+**Academy fetch-all:** request `limit = 1000` (accepted by the API, Task 1.4), which today returns all 100 records in one request. Keep fetching pages until `collected >= total`, with a safety cap of 20 pages. If the cap is hit, show "Showing the first N academy candidates" instead of claiming complete counts.
 
 **Academy failure:** the list still shows local candidates, with an inline error: "Academy candidates could not be loaded" plus Retry. Counts then cover local candidates only, and the UI says so.
 
@@ -150,11 +150,17 @@ Work on branch `feature/portfolio-demo`. Commit after each step (conventional co
 
 ### Step 1 — Preparation and verification (no app code)
 
-- [ ] **1.1** Create branch `feature/portfolio-demo`. Run `npm install`, `npm run lint`, `npm run build`, and record the baseline result.
-- [ ] **1.2** Check that the API answers GET requests anonymously and allows CORS from another origin: run `curl -i -H "Origin: https://example.vercel.app" "$NEXT_PUBLIC_API_URL/records?limit=1"`. If CORS blocks it, flag it. The fallback is a read-only Next.js route handler proxy that forwards **only GET**.
-- [ ] **1.3** Confirm the academy data is fictional and allowed to be shown publicly. The API is shared by course students, so check for real-looking personal data and offensive test records. If in doubt, ask 4Geeks before deploying.
-- [ ] **1.4** Find the API's default order (fetch `?limit=100` and compare `applied_at` / `updated_at` across rows) and the maximum `limit` it accepts. Write both into `lib/constants.ts` comments. If the order is unclear, use `applied_at` descending, then `id`.
-- [ ] **1.5** Check how the server's `search` matches (name and email? substring? case-insensitive?) so the client-side search behaves the same.
+- [x] **1.1** Create branch `feature/portfolio-demo`. Run `npm install`, `npm run lint`, `npm run build`, and record the baseline result.
+  - **Result (2026-10-29):** branch created from `282f15f`. Baseline after the Next.js 16.4.3 security upgrade: lint, `tsc --noEmit` and build all pass.
+- [x] **1.2** Check that the API answers GET requests anonymously and allows CORS from another origin: run `curl -i -H "Origin: https://example.vercel.app" "$NEXT_PUBLIC_API_URL/records?limit=1"`. If CORS blocks it, flag it. The fallback is a read-only Next.js route handler proxy that forwards **only GET**.
+  - **Result (2026-10-29):** `200 OK`, no auth needed, `Access-Control-Allow-Origin: *`, so the deployed site can call the API from the browser and no proxy is needed. The app sends no cookies, so the `Allow-Credentials: true` + `*` combination doesn't matter. `total` was 100. List rows also include a `notes` array, which the fetch-all could reuse later.
+- [x] **1.3** Confirm the academy data is fictional and allowed to be shown publicly. The API is shared by course students, so check for real-looking personal data and offensive test records. If in doubt, ask 4Geeks before deploying.
+  - **Decision (2026-10-29):** accepted as is. The records are seeded course test data and are shown unchanged (no masking).
+- [x] **1.4** Find the API's default order (fetch `?limit=100` and compare `applied_at` / `updated_at` across rows) and the maximum `limit` it accepts. Write both into `lib/constants.ts` comments (done in Step 3 with `ACADEMY_FETCH_LIMIT`). If the order is unclear, use `applied_at` descending, then `id`.
+  - **Result (2026-10-29):** `limit=1000` is accepted and returns all 100 records in **one request** (the default is 20). The order is **not sorted by any field** (`applied_at`, `updated_at`, `full_name`, `id` all mixed), but it is **stable**: repeated calls and pages 1+2 of 50 give the same order as one page of 100. It's most likely insertion order. This can't be confirmed without a POST, which the plan forbids.
+  - **Sort rule decided:** one comparator over the merged list. Local candidates come first, newest `applied_at` first, so a new candidate appears at the top right away. Academy candidates follow in the API's order (their fetch index). This keeps the existing academy order unchanged.
+- [x] **1.5** Check how the server's `search` matches (name and email? substring? case-insensitive?) so the client-side search behaves the same.
+  - **Result (2026-10-29):** case-insensitive **substring** match on `full_name` **or** `email` (`ichae`, `smith@gm`, `.smith@`, `michael smith` all match). It does **not** search `position` or `phone`. Accent handling can't be told apart, because emails are accent-free copies of the names. Client search: trim, lowercase, strip accents (`normalize("NFD")`), substring on name or email. That gives the same or slightly broader results.
 
 **Done when:** the baseline builds, and CORS, order, limit and search semantics are known.
 
