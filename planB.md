@@ -53,7 +53,7 @@ Write call sites to remove (the only ones): `useCandidateDetail.ts` (`updateReco
 ### 2.1 Data model
 
 ```ts
-// types/candidate.ts (additions)
+// lib/local/types.ts (temporary, so types/candidate.ts stays unchanged)
 export type CandidateSource = "academy" | "local";
 export type SourcedCandidate = Candidate & { source: CandidateSource };
 ```
@@ -91,7 +91,7 @@ Reset Demo removes only keys starting with `talent-tracker:`.
 9 render   existing components, plus a source badge
 ```
 
-Steps 3–7 are one pure function, `queryCandidates(all, filters)`, in `lib/local/query.ts`.
+Steps 3, 4 and 7 are `mergeCandidates(local, academy)` (it builds the list already in display order), and steps 5–6 are `queryCandidates(all, filters)` (filtering keeps that order). Both are in `lib/local/query.ts`.
 
 **Academy fetch-all:** request `limit = 1000` (accepted by the API, Task 1.4), which today returns all 100 records in one request. Keep fetching pages until `collected >= total`, with a safety cap of 20 pages. If the cap is hit, show "Showing the first N academy candidates" instead of claiming complete counts.
 
@@ -183,9 +183,13 @@ Work on branch `feature/portfolio-demo`. Commit after each step (conventional co
 
 ### Step 3 — Combined dataset and query
 
-- [ ] **3.1** `lib/local/academy-all.ts`: `fetchAllAcademyRecords()` loops over `getRecords` (§2.3, page cap) and returns `{ records, total, truncated }`.
-- [ ] **3.2** `lib/local/query.ts`: `queryCandidates(all, { search, status, stage })` (steps 5–7) and `pageSlice(list, page, PAGE_SIZE)`.
-- [ ] **3.3** `context/candidate-dataset.tsx`: a provider placed beside `CandidateUpdatesProvider` in `app/layout.tsx`. It holds the academy fetch state (`loading`, `error`, `retry`, `truncated`) and the local list from `useSyncExternalStore`, and exposes `candidates: SourcedCandidate[]` with local `notes_count` filled in. The academy fetch runs **once** and is shared by the table, feed and details, which also fixes the old "first page requested twice" limitation.
+- [x] **3.1** `lib/local/academy-all.ts`: `fetchAllAcademyRecords()` loops over `getRecords` (§2.3, page cap) and returns `{ records, total, truncated }`.
+  - Returns `{ records, truncated }` (no separate `total`: the list counts matches itself). Records are keyed by ID, so a row that shifts between pages isn't shown twice. `ACADEMY_FETCH_LIMIT = 1000` and `ACADEMY_MAX_PAGES = 20` are in `lib/local/constants.ts`.
+- [x] **3.2** `lib/local/query.ts`: `queryCandidates(all, { search, status, stage })` (steps 5–7) and `pageSlice(list, page, PAGE_SIZE)`.
+  - Plus `mergeCandidates()`, which adds `source` and does the sort. `pageSlice` returns the same shape as `GET /records`, so the table can read it unchanged.
+  - **Checked against the real API (2026-10-29):** for `jimenez`, `MICHAEL`, `smith@gm`, `Jefa`, `received + pending` and `gmail + in_progress`, the academy matches equal the API's own totals (3, 2, 1, 0, 65, 8), with local matches added on top. Page 11 of 102 has 2 rows and page 12 is empty.
+- [x] **3.3** `context/candidate-dataset.tsx`: a provider placed beside `CandidateUpdatesProvider` in `app/layout.tsx`. It holds the academy fetch state (`loading`, `error`, `retry`, `truncated`) and the local list from `useSyncExternalStore`, and exposes `candidates: SourcedCandidate[]` (local `notes_count` is already stored, Step 2). The academy fetch runs **once** and is shared by the table, feed and details, which also fixes the old "first page requested twice" limitation.
+  - Exposes `candidates`, `localCount`, `academyLoading`, `academyError`, `academyTruncated` and `retryAcademy` through `useCandidateDataset()`. Until Step 4 nothing reads it yet, so each page load makes one extra academy request.
 
 **Done when:** lint, typecheck and build pass. Commit `feat: merge academy and local candidates into one dataset`.
 

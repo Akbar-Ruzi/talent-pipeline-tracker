@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
+import { CandidateDatasetProvider } from "@/context/candidate-dataset";
 import { CandidateDraftsProvider } from "@/context/candidate-drafts";
 import { CandidateUpdatesProvider } from "@/context/candidate-updates";
 
@@ -30,8 +31,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col">
         {/* Shares saved candidates between the details and the list (all routes) */}
         <CandidateUpdatesProvider>
-          {/* Keeps unsaved edits when switching between drawer and full page */}
-          <CandidateDraftsProvider>{children}</CandidateDraftsProvider>
+          {/* Public demo: academy + local candidates, loaded once for all views */}
+          <CandidateDatasetProvider>
+            {/* Keeps unsaved edits when switching between drawer and full page */}
+            <CandidateDraftsProvider>{children}</CandidateDraftsProvider>
+          </CandidateDatasetProvider>
         </CandidateUpdatesProvider>
       </body>
     </html>
