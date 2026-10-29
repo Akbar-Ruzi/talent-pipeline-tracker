@@ -24,7 +24,7 @@ This compares the earlier version of this file with the new requirements. The or
 | 9 | Collision-safe IDs | `academy:123` / `local:uuid` | Simpler: academy IDs stay raw UUIDs (existing URLs keep working) and local IDs are `local-<uuid>`. No prefix collides with a UUID or with `new` |
 | 10 | Fictional demo data only | Notice | Kept. Also check that the shared course API holds no real personal data (Task 1.3) |
 | 11 | Phase 2: PUT/PATCH/DELETE candidate API, notes API, admin **reactivate** and "manage access" | Partly missing | Added to §7 |
-| 12 | Tests listed in the checklist | Unit tests named, but the repo has no test runner | Added Vitest for the pure logic (Task 2.4) and a manual browser checklist (Task 6.3) |
+| 12 | Tests listed in the checklist | Unit tests named, but the repo has no test runner | **No automated tests** (your decision). Testing is the manual browser checklist (Task 6.3) plus lint, typecheck and build |
 
 Requirements that already matched: hybrid list, `academy`/`local` source, no auth in Phase 1, localStorage rules, Reset Demo, graceful API failure, Phase 2 stack.
 
@@ -91,7 +91,7 @@ Reset Demo removes only keys starting with `talent-tracker:`.
 9 render   existing components, plus a source badge
 ```
 
-Steps 3–7 are one pure function, `queryCandidates(all, filters)`, in `lib/candidates/query.ts`, unit-tested.
+Steps 3–7 are one pure function, `queryCandidates(all, filters)`, in `lib/local/query.ts`.
 
 **Academy fetch-all:** request `limit = 1000` (accepted by the API, Task 1.4), which today returns all 100 records in one request. Keep fetching pages until `collected >= total`, with a safety cap of 20 pages. If the cap is hit, show "Showing the first N academy candidates" instead of claiming complete counts.
 
@@ -114,15 +114,15 @@ Steps 3–7 are one pure function, `queryCandidates(all, filters)`, in `lib/cand
 ```text
 lib/
 ├── api/                          # UNCHANGED
-├── storage/
-│   ├── local-store.ts            # NEW: safe read/write/subscribe for talent-tracker:* keys, resetDemo()
-│   ├── local-candidates.ts       # NEW: list/get/create(limit 10)/update/patch
-│   └── local-notes.ts            # NEW: list by candidate, create, delete
-├── candidates/
-│   ├── ids.ts                    # NEW: newLocalId(), isLocalId()
-│   ├── academy-all.ts            # NEW: fetchAllAcademyRecords() using getRecords
-│   └── query.ts                  # NEW: queryCandidates(), pageSlice()
-└── constants.ts                  # + MAX_LOCAL_CANDIDATES = 10, ACADEMY_FETCH_LIMIT
+├── constants.ts                  # UNCHANGED
+└── local/                        # NEW, TEMPORARY: all Phase 1 demo logic, deleted in Phase 2
+    ├── constants.ts              # MAX_LOCAL_CANDIDATES = 10, ACADEMY_FETCH_LIMIT
+    ├── ids.ts                    # newLocalId(), isLocalId(), assertLocalId()
+    ├── local-store.ts            # safe read/write/subscribe for talent-tracker:* keys, resetDemo()
+    ├── local-candidates.ts       # list/get/create(limit 10)/update/patch
+    ├── local-notes.ts            # list by candidate, create, delete
+    ├── academy-all.ts            # fetchAllAcademyRecords() using getRecords
+    └── query.ts                  # queryCandidates(), pageSlice()
 context/
 └── candidate-dataset.tsx         # NEW: academy cache + local store → merged SourcedCandidate[]
 hooks/
@@ -133,7 +133,7 @@ hooks/
 └── useCreateCandidate.ts         # CHANGED: local create
 components/
 ├── shared/candidate-badges.tsx   # + SourceBadge ("Academy · read-only" / "My demo candidate")
-├── shared/demo-banner.tsx        # NEW: fictional-data notice, "x / 10" counter, Reset Demo
+├── local/demo-banner.tsx         # NEW, TEMPORARY: fictional-data notice, "x / 10" counter, Reset Demo
 ├── candidate-list/*              # badge in table rows and cards; Add button disabled at 10
 ├── candidate-detail/*            # readOnly prop hides Edit / Add Note / Delete Note for academy
 └── candidate-form/create-candidate-form.tsx  # limit-reached state for /candidates/new and ?candidate=new
@@ -141,6 +141,8 @@ eslint.config.mjs                 # no-restricted-imports for academy write func
 ```
 
 Keep the hook return shapes the same so list and detail components need minimal edits.
+
+**Temporary code rule:** everything that exists only for the Phase 1 demo goes in `lib/local/` (logic) or `components/local/` (UI), so Phase 2 can delete those folders. Edits that must live in existing files (hooks routing by source, `readOnly` props, badges) stay small and import from `lib/local/`, so Phase 2 finds them by searching for `@/lib/local`.
 
 ---
 
@@ -156,7 +158,7 @@ Work on branch `feature/portfolio-demo`. Commit after each step (conventional co
   - **Result (2026-10-29):** `200 OK`, no auth needed, `Access-Control-Allow-Origin: *`, so the deployed site can call the API from the browser and no proxy is needed. The app sends no cookies, so the `Allow-Credentials: true` + `*` combination doesn't matter. `total` was 100. List rows also include a `notes` array, which the fetch-all could reuse later.
 - [x] **1.3** Confirm the academy data is fictional and allowed to be shown publicly. The API is shared by course students, so check for real-looking personal data and offensive test records. If in doubt, ask 4Geeks before deploying.
   - **Decision (2026-10-29):** accepted as is. The records are seeded course test data and are shown unchanged (no masking).
-- [x] **1.4** Find the API's default order (fetch `?limit=100` and compare `applied_at` / `updated_at` across rows) and the maximum `limit` it accepts. Write both into `lib/constants.ts` comments (done in Step 3 with `ACADEMY_FETCH_LIMIT`). If the order is unclear, use `applied_at` descending, then `id`.
+- [x] **1.4** Find the API's default order (fetch `?limit=100` and compare `applied_at` / `updated_at` across rows) and the maximum `limit` it accepts. Write both into `lib/local/constants.ts` comments (done in Step 3 with `ACADEMY_FETCH_LIMIT`). If the order is unclear, use `applied_at` descending, then `id`.
   - **Result (2026-10-29):** `limit=1000` is accepted and returns all 100 records in **one request** (the default is 20). The order is **not sorted by any field** (`applied_at`, `updated_at`, `full_name`, `id` all mixed), but it is **stable**: repeated calls and pages 1+2 of 50 give the same order as one page of 100. It's most likely insertion order. This can't be confirmed without a POST, which the plan forbids.
   - **Sort rule decided:** one comparator over the merged list. Local candidates come first, newest `applied_at` first, so a new candidate appears at the top right away. Academy candidates follow in the API's order (their fetch index). This keeps the existing academy order unchanged.
 - [x] **1.5** Check how the server's `search` matches (name and email? substring? case-insensitive?) so the client-side search behaves the same.
@@ -164,26 +166,28 @@ Work on branch `feature/portfolio-demo`. Commit after each step (conventional co
 
 **Done when:** the baseline builds, and CORS, order, limit and search semantics are known.
 
-### Step 2 — Local storage layer (pure, tested)
+### Step 2 — Local storage layer
 
-- [ ] **2.1** `lib/candidates/ids.ts`: `newLocalId("candidate" | "note")`, `isLocalId()`.
-- [ ] **2.2** `lib/storage/local-store.ts`: `readList(key, guard)`, `writeList(key, list)`, `subscribe(cb)` (same-tab and `storage` event), `resetDemo()`. Wrap everything in try/catch and use the existing guards.
-- [ ] **2.3** `lib/storage/local-candidates.ts` and `local-notes.ts`:
+- [x] **2.1** `lib/local/ids.ts`: `newLocalId("candidate" | "note")`, `isLocalId()`.
+  - Also `assertLocalId()`, and a `getRandomValues` fallback, because `crypto.randomUUID` doesn't exist on plain http (the dev site on a phone).
+- [x] **2.2** `lib/local/local-store.ts`: `readList(key, guard)`, `writeList(key, list)`, `subscribe(cb)` (same-tab and `storage` event), `resetDemo()`. Wrap everything in try/catch and use the existing guards.
+  - `readList` returns the same array while the stored text is unchanged, ready for `useSyncExternalStore` in Step 3.
+- [x] **2.3** `lib/local/local-candidates.ts` and `local-notes.ts` (limit in `lib/local/constants.ts`):
   - `createLocalCandidate(payload: CreateCandidatePayload)` → throws `"You can create up to 10 demo candidates. Use Reset Demo to start over."` at the limit.
   - `updateLocalCandidate(id, UpdateCandidatePayload)` (PUT semantics: empty URL = null) and `patchLocalCandidate(id, UpdateCandidateStatusPayload)`. Both set `updated_at`.
-  - `listLocalNotes(candidateId)` (oldest first, like the API), `createLocalNote`, `deleteLocalNote`. `notes_count` is derived from these.
+  - `listLocalNotes(candidateId)` (oldest first, like the API), `createLocalNote`, `deleteLocalNote`. ~~`notes_count` is derived from these.~~ **Changed:** `notes_count` is stored on the candidate and updated on each note add/delete, like the server does. Reads stay simple and cached; Step 3 doesn't need to recount.
   - Every function rejects IDs that aren't `isLocalId`.
-- [ ] **2.4** Add Vitest (`npm i -D vitest jsdom`, script `"test": "vitest run"`). Test: limit 10 (the 11th throws; Reset Demo frees the slots), persistence round-trip, corrupt JSON → `[]`, academy ID rejected, reset clears candidates and notes but only `talent-tracker:*` keys.
+  - Signatures mirror `lib/api/records.ts` / `notes.ts` (`{ id, payload }`, `{ id, noteId }`), so Step 5 can switch by source with no adapter code.
 
-**Done when:** `npm test` passes. Commit `feat: add localStorage store for demo candidates and notes`.
+**Done when:** lint, typecheck and build pass. Commit `feat: add localStorage store for demo candidates and notes`.
 
 ### Step 3 — Combined dataset and query
 
-- [ ] **3.1** `lib/candidates/academy-all.ts`: `fetchAllAcademyRecords()` loops over `getRecords` (§2.3, page cap) and returns `{ records, total, truncated }`.
-- [ ] **3.2** `lib/candidates/query.ts`: `queryCandidates(all, { search, status, stage })` (steps 5–7) and `pageSlice(list, page, PAGE_SIZE)`. Add Vitest cases: combined search hits both sources, filter combinations, sort mixes sources, page count = ceil(matches / 10), and the page count shrinks after Reset Demo.
+- [ ] **3.1** `lib/local/academy-all.ts`: `fetchAllAcademyRecords()` loops over `getRecords` (§2.3, page cap) and returns `{ records, total, truncated }`.
+- [ ] **3.2** `lib/local/query.ts`: `queryCandidates(all, { search, status, stage })` (steps 5–7) and `pageSlice(list, page, PAGE_SIZE)`.
 - [ ] **3.3** `context/candidate-dataset.tsx`: a provider placed beside `CandidateUpdatesProvider` in `app/layout.tsx`. It holds the academy fetch state (`loading`, `error`, `retry`, `truncated`) and the local list from `useSyncExternalStore`, and exposes `candidates: SourcedCandidate[]` with local `notes_count` filled in. The academy fetch runs **once** and is shared by the table, feed and details, which also fixes the old "first page requested twice" limitation.
 
-**Done when:** tests pass. Commit `feat: merge academy and local candidates into one dataset`.
+**Done when:** lint, typecheck and build pass. Commit `feat: merge academy and local candidates into one dataset`.
 
 ### Step 4 — Switch the list hooks (no visual change yet)
 
@@ -195,7 +199,7 @@ Work on branch `feature/portfolio-demo`. Commit after each step (conventional co
 
 ### Step 5 — Source-aware details, notes, create
 
-- [ ] **5.1** `useCandidateDetail`: a local ID reads from the dataset or storage and `updateInfo`/`updateStatus` call the local functions. An academy ID uses `getRecord`, and `updateInfo`/`updateStatus` throw `"Academy candidates are read-only."`. Return `readOnly: boolean`. Unknown local ID (removed by Reset Demo, or from another browser) → existing not-found/error state.
+- [ ] **5.1** `useCandidateDetail`: a local ID reads from the dataset or storage and `updateInfo`/`updateStatus` call the local functions. An academy ID uses `getRecord`, and `updateInfo`/`updateStatus` throw `"You can only edit candidates you created."` (the same message as `assertLocalId`). Return `readOnly: boolean`. Unknown local ID (removed by Reset Demo, or from another browser) → existing not-found/error state.
 - [ ] **5.2** `useCandidateNotes`: local → `listLocalNotes`/`createLocalNote`/`deleteLocalNote`; academy → `getNotes`, and save/remove throw. Return `readOnly`.
 - [ ] **5.3** `useCreateCandidate`: call `createLocalCandidate` and then `notifyCandidateSaved()`. Expose `limitReached` and `localCount`.
 - [ ] **5.4** UI read-only states: pass `readOnly` to `general-information-card.tsx` and `recruitment-progress-card.tsx` (hide Edit) and to `candidate-notes.tsx` (hide composer and delete icons; show "Academy notes are read-only"). Use them in both `candidate-drawer.tsx` and `candidate-full-page.tsx`.
@@ -207,7 +211,7 @@ Work on branch `feature/portfolio-demo`. Commit after each step (conventional co
 
 ### Step 6 — Demo shell, docs, verification
 
-- [ ] **6.1** `components/shared/demo-banner.tsx` (under `app-header.tsx`): "Public demo — academy data is read-only; candidates you add are saved only in this browser. Don't enter real personal data." Also shows the "x / 10 demo candidates" counter and a **Reset Demo** button with a confirm step. Reset calls `resetDemo()`, notifies the dataset, and closes any open local candidate.
+- [ ] **6.1** `components/local/demo-banner.tsx` (under `app-header.tsx`): "Public demo — academy data is read-only; candidates you add are saved only in this browser. Don't enter real personal data." Also shows the "x / 10 demo candidates" counter and a **Reset Demo** button with a confirm step. Reset calls `resetDemo()`, notifies the dataset, and closes any open local candidate.
 - [ ] **6.2** README: replace the "Known limitations" and endpoint table with the demo behavior (read-only academy, localStorage, the 10-limit is per browser and not secure, no sync, clearing storage erases data). Add an architecture diagram and the Phase 2 roadmap link.
 - [ ] **6.3** Manual test checklist (desktop, tablet and 375px mobile; Chrome DevTools Network tab filtered to the API host):
   - [ ] Create 10 → the 11th is blocked; Reset Demo → can create again
@@ -222,7 +226,7 @@ Work on branch `feature/portfolio-demo`. Commit after each step (conventional co
   - [ ] Block the API host in DevTools → local demo still works and the academy error + Retry shows
   - [ ] Edit localStorage JSON by hand into garbage → app recovers to an empty local list
   - [ ] **Network: zero POST/PUT/PATCH/DELETE requests to the API during all of the above**
-- [ ] **6.4** Static check: `grep -rnE "createRecord|updateRecord|updateRecordStatus|createNote|deleteNote" app components hooks context lib --include=*.ts --include=*.tsx | grep -v "^lib/api/"` returns nothing. Run `npm run lint && npx tsc --noEmit && npm test && npm run build`.
+- [ ] **6.4** Static check: `grep -rnE "createRecord|updateRecord|updateRecordStatus|createNote|deleteNote" app components hooks context lib --include=*.ts --include=*.tsx | grep -v "^lib/api/"` returns nothing. Run `npm run lint && npx tsc --noEmit && npm run build`.
 
 **Done when:** the checklist passes. Commit `feat: add demo banner with reset and document public demo`.
 
@@ -302,7 +306,7 @@ All mutations need authentication, authorization, ownership checks and Pydantic 
 2. Schema and migrations for the tables above.
 3. Candidate and notes endpoints with ownership, validation, transactional limit, rate limiting.
 4. Auth.js + Google sign-in. FastAPI verifies a signed token or session from Next.js (design this boundary explicitly).
-5. Replace `lib/storage/*` with API clients behind the same hook interfaces. The `CandidateDatasetProvider` boundary from Phase 1 is the swap point, so components stay the same.
+5. Delete `lib/local/` and `components/local/`, and point the hooks (found by searching for `@/lib/local`) at API clients behind the same interfaces. The `CandidateDatasetProvider` boundary from Phase 1 is the swap point, so components stay the same.
 6. Admin dashboard: users, account details, suspend/reactivate/delete, access management, audit log.
 7. Optional: import browser demo candidates after first sign-in (validated, deduplicated, limit enforced).
 8. Deploy FastAPI and managed PostgreSQL; set up secrets, backups and monitoring. Keep academy GET as an optional read-only source.
