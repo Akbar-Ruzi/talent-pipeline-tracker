@@ -3,11 +3,13 @@
 import { useEffect, useEffectEvent, useId, useState } from "react";
 
 import CandidateForm from "@/components/candidate-form/candidate-form";
+import EmptyState from "@/components/shared/empty-state";
 import ErrorState from "@/components/shared/error-state";
 import SuccessMessage from "@/components/shared/success-message";
 import { useCandidateDrafts } from "@/context/candidate-drafts";
 import { useCreateCandidate } from "@/hooks/useCreateCandidate";
 import { NEW_CANDIDATE_ID, SUCCESS_MESSAGE_MS } from "@/lib/constants";
+import { MAX_LOCAL_CANDIDATES } from "@/lib/local/constants";
 import {
   EMPTY_CANDIDATE_FORM,
   toCreatePayload,
@@ -15,7 +17,7 @@ import {
 import type { Candidate, CandidateFormValues } from "@/types/candidate";
 
 // New-candidate form, shared by the create drawer and the create full page.
-// Create sends POST /records. The values are a draft under NEW_CANDIDATE_ID,
+// Create saves the candidate in this browser (Phase 1 demo, via useCreateCandidate). The values are a draft under NEW_CANDIDATE_ID,
 // so typing survives Expand / Drawer View; Cancel and Close discard them.
 // After a successful save, the form stays blurred under "Candidate created."
 // for a few seconds, then onCreated opens the new candidate's details.
@@ -28,7 +30,7 @@ export default function CreateCandidateForm({
   onCreated: (candidate: Candidate) => void; // e.g. open the new candidate
   onCancel: () => void;
 }) {
-  const { createCandidate } = useCreateCandidate();
+  const { createCandidate, limitReached } = useCreateCandidate();
   const { drafts, setDraft, clearDraft } = useCandidateDrafts();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +92,22 @@ export default function CreateCandidateForm({
       setSaving(false); // only on failure: on success the form is left
     }
   };
+
+  // Phase 1 demo: opened at 10/10 from a URL (/candidates/new, ?candidate=new),
+  // since the Add button is disabled. Not while saving: creating the 10th
+  // candidate reaches the limit, and its success message must still show.
+  if (limitReached && !saving) {
+    return (
+      <div className="*:mt-0">
+        <EmptyState
+          title="Demo limit reached"
+          description={`You can create up to ${MAX_LOCAL_CANDIDATES} demo candidates. Use Reset Demo to start over.`}
+          actionLabel="Back to Candidates"
+          onAction={onCancel}
+        />
+      </div>
+    );
+  }
 
   return (
     <section className="relative rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">

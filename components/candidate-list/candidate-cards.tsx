@@ -1,10 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { StageBadge, StatusBadge } from "@/components/shared/candidate-badges";
+import {
+  SourceBadge,
+  StageBadge,
+  StatusBadge,
+} from "@/components/shared/candidate-badges";
 import { useSearchParams } from "next/navigation";
 import { fullPageHref, toListQuery } from "@/lib/utils/candidate-urls";
-import type { Candidate } from "@/types/candidate";
+import type { SourcedCandidate } from "@/lib/local/types";
 
 // Mobile view (below md). Tablet and desktop use CandidateTable.
 // Cards open the full page directly (no drawer on mobile), carrying the
@@ -13,7 +17,7 @@ export default function CandidateCards({
   candidates,
   onOpen,
 }: {
-  candidates: Candidate[];
+  candidates: SourcedCandidate[];
   onOpen: () => void; // remembers the scroll position before leaving the list
 }) {
   const listQuery = toListQuery(useSearchParams());
@@ -33,6 +37,11 @@ export default function CandidateCards({
                   {candidate.full_name}
                 </p>
                 <p className="truncate text-slate-600">{candidate.position}</p>
+                {candidate.source === "local" && (
+                  <div className="mt-2">
+                    <SourceBadge source={candidate.source} />
+                  </div>
+                )}
               </div>
               <svg
                 aria-hidden="true"

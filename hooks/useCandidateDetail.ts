@@ -1,39 +1,51 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   Candidate,
   UpdateCandidatePayload,
   UpdateCandidateStatusPayload,
 } from "@/types/candidate";
-import { useCandidateUpdates } from "@/context/candidate-updates";
-import { getRecord, updateRecord, updateRecordStatus } from "@/lib/api/records";
+import { useCandidateDataset } from "@/context/candidate-dataset";
+import { getRecord } from "@/lib/api/records";
+import { assertLocalId, isLocalId } from "@/lib/local/ids";
+import {
+  patchLocalCandidate,
+  updateLocalCandidate,
+} from "@/lib/local/local-candidates";
 
 /**
  * ------------Drawer and full page------------
- * One candidate's full details from GET /records/:id.
+ * One candidate's full details.
  * id is null while the drawer is closed: nothing is fetched.
  * (Hooks can't be called conditionally, so the drawer calls this
  * on every render and passes null instead of skipping the call.)
+ *
+ * Phase 1 demo: an academy candidate comes from GET /records/:id and is
+ * read-only. A local candidate (created in this browser) is read from the
+ * shared dataset and saved to localStorage, so the list follows its edits.
  */
 export function useCandidateDetail(id: string | null) {
+  const isLocal = id !== null && isLocalId(id);
+  // The academy record to fetch: none while closed or for a local candidate
+  const academyId = isLocal ? null : id;
+
   const [candidate, setCandidate] = useState<Candidate | null>(null);
-  const [loading, setLoading] = useState(id !== null);
+  const [loading, setLoading] = useState(academyId !== null);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
-  const { notifyCandidateSaved } = useCandidateUpdates();
 
   // Another candidate opened → forget the old one and show the skeleton.
   // Done during render (not in an effect), so the previous candidate's
   // details never flash under the new one's ID.
-  const [prevId, setPrevId] = useState(id);
-  if (id !== prevId) {
-    setPrevId(id);
+  const [prevId, setPrevId] = useState(academyId);
+  if (academyId !== prevId) {
+    setPrevId(academyId);
     setCandidate(null);
-    setLoading(id !== null);
+    setLoading(academyId !== null);
     setError(null);
   }
 
   useEffect(() => {
-    if (id === null) return; // drawer closed: nothing to load
+    if (academyId === null) return; // closed, or local: nothing to fetch
 
     // Without ignore, a slow reply for the previous candidate can arrive
     // last and show the wrong person under this candidate's ID.
@@ -57,11 +69,11 @@ export function useCandidateDetail(id: string | null) {
         if (!ignore) setLoading(false);
       }
     }
-    load(id);
+    load(academyId);
     return () => {
       ignore = true;
     };
-  }, [id, reloadKey]);
+  }, [academyId, reloadKey]);
 
   const retry = () => {
     setLoading(true); // show the skeleton again
@@ -69,31 +81,60 @@ export function useCandidateDetail(id: string | null) {
     setReloadKey((k) => k + 1); // new value → the effect runs again
   };
 
-  // After a save (PATCH/PUT), show the server's updated candidate.
-  // Ignored here if another candidate was opened while the save was running.
-  // The list always refetches, since the saved candidate may be one of its rows.
-  const replaceCandidate = (updated: Candidate) => {
-    setCandidate((current) =>
-      current && current.id === updated.id ? updated : current,
-    );
-    notifyCandidateSaved();
-  };
+  // Local: re-renders after every save here or in another tab
+  const { candidates, localReady } = useCandidateDataset();
+  const localCandidate = useMemo(
+    () =>
+      isLocal
+        ? (candidates.find(
+            (item) => item.source === "local" && item.id === id,
+          ) ?? null)
+        : null,
+    [isLocal, candidates, id],
+  );
+  // Removed by Reset Demo, or a link from another browser
+  const localMissing = isLocal && localReady && localCandidate === null;
 
-  // The hook owns the writes too (API call + update); the cards only own their
-  // buttons and messages. Both throw on failure, so the card can show the
-  // error and keep the user's values.
+  // The hook owns the writes too; the cards only own their buttons and
+  // messages. Both throw on failure (and for academy candidates), so the card
+  // can show the error and keep the user's values. No need to update state
+  // after a save: the dataset re-reads storage and localCandidate follows.
 
-  // PATCH /records/:id: status and/or stage only
+  // Like PATCH /records/:id: status and/or stage only
   const updateStatus = async (payload: UpdateCandidateStatusPayload) => {
     if (id === null) throw new Error("No candidate is open.");
-    replaceCandidate(await updateRecordStatus({ id, payload }));
+    assertLocalId(id); // academy candidates are read-only
+    patchLocalCandidate({ id, payload });
   };
 
-  // PUT /records/:id: the general information
+  // Like PUT /records/:id: the general information
   const updateInfo = async (payload: UpdateCandidatePayload) => {
     if (id === null) throw new Error("No candidate is open.");
-    replaceCandidate(await updateRecord({ id, payload }));
+    assertLocalId(id);
+    updateLocalCandidate({ id, payload });
   };
 
-  return { candidate, loading, error, retry, updateStatus, updateInfo };
+  if (isLocal) {
+    return {
+      candidate: localCandidate,
+      loading: !localReady, // the local list arrives right after hydration
+      error: localMissing
+        ? "This demo candidate isn't saved in this browser. It may have been removed by Reset Demo or created in another browser."
+        : null,
+      retry: undefined, // nothing to fetch again
+      readOnly: false,
+      updateStatus,
+      updateInfo,
+    };
+  }
+
+  return {
+    candidate,
+    loading,
+    error,
+    retry,
+    readOnly: true, // academy data is never written
+    updateStatus,
+    updateInfo,
+  };
 }

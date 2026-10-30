@@ -4,7 +4,6 @@ import "./globals.css";
 
 import { CandidateDatasetProvider } from "@/context/candidate-dataset";
 import { CandidateDraftsProvider } from "@/context/candidate-drafts";
-import { CandidateUpdatesProvider } from "@/context/candidate-updates";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,14 +28,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        {/* Shares saved candidates between the details and the list (all routes) */}
-        <CandidateUpdatesProvider>
-          {/* Public demo: academy + local candidates, loaded once for all views */}
-          <CandidateDatasetProvider>
-            {/* Keeps unsaved edits when switching between drawer and full page */}
-            <CandidateDraftsProvider>{children}</CandidateDraftsProvider>
-          </CandidateDatasetProvider>
-        </CandidateUpdatesProvider>
+        {/* Public demo: academy + local candidates, loaded once for all views.
+            Local saves reach the list and details through it (all routes). */}
+        <CandidateDatasetProvider>
+          {/* Keeps unsaved edits when switching between drawer and full page */}
+          <CandidateDraftsProvider>{children}</CandidateDraftsProvider>
+        </CandidateDatasetProvider>
       </body>
     </html>
   );

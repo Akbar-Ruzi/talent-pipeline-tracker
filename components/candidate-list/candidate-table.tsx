@@ -1,16 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { StageBadge, StatusBadge } from "@/components/shared/candidate-badges";
+import {
+  SourceBadge,
+  StageBadge,
+  StatusBadge,
+} from "@/components/shared/candidate-badges";
 import { useCandidateDrawerHref } from "@/hooks/useCandidateDrawerHref";
 
-import type { Candidate } from "@/types/candidate";
+import type { SourcedCandidate } from "@/lib/local/types";
 
 // Tablet and desktop view (md and up). Mobile uses CandidateCards.
 export default function CandidateTable({
   candidates,
 }: {
-  candidates: Candidate[];
+  candidates: SourcedCandidate[];
 }) {
   const getCandidateDrawerHref = useCandidateDrawerHref();
 
@@ -47,6 +51,11 @@ export default function CandidateTable({
               >
                 {candidate.full_name}
               </Link>
+              {candidate.source === "local" && (
+                <div className="mt-1">
+                  <SourceBadge source={candidate.source} />
+                </div>
+              )}
             </td>
             <td className="px-6 py-5 text-slate-600 lg:px-8">
               {candidate.position}

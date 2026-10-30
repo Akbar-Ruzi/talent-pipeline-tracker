@@ -1,6 +1,11 @@
 import type { ReactNode } from "react";
 
-import { StageBadge, StatusBadge } from "@/components/shared/candidate-badges";
+import {
+  SourceBadge,
+  StageBadge,
+  StatusBadge,
+} from "@/components/shared/candidate-badges";
+import { isLocalId } from "@/lib/local/ids";
 import { getInitials } from "@/lib/utils/candidate-format";
 import type { Candidate } from "@/types/candidate";
 
@@ -27,6 +32,8 @@ export default function CandidateHeader({
     <>
       <StatusBadge status={candidate.status} />
       <StageBadge stage={candidate.stage} />
+      {/* The ID says the source: the details may come straight from the API */}
+      <SourceBadge source={isLocalId(candidate.id) ? "local" : "academy"} />
     </>
   );
 
@@ -48,7 +55,7 @@ export default function CandidateHeader({
           </div>
           {actions}
         </div>
-        <div className="mt-3 flex flex-wrap gap-2">{badges}</div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">{badges}</div>
       </>
     );
   }
@@ -65,7 +72,7 @@ export default function CandidateHeader({
               {candidate.full_name}
             </h1>
             {/* Tablet/desktop: badges beside the name */}
-            <div className="flex gap-2 max-md:hidden">{badges}</div>
+            <div className="flex items-center gap-2 max-md:hidden">{badges}</div>
           </div>
           <p className="text-slate-500">{candidate.position}</p>
         </div>
@@ -73,7 +80,7 @@ export default function CandidateHeader({
       </div>
 
       {/* Mobile: badges on one full-width row under the name and position */}
-      <div className="mt-3 flex gap-2 md:hidden">{badges}</div>
+      <div className="mt-3 flex flex-wrap items-center gap-2 md:hidden">{badges}</div>
     </>
   );
 }

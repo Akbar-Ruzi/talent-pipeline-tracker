@@ -140,7 +140,7 @@ To use DevTools on an Android phone (for example Network → Offline), connect i
 - `components/candidate-form/` - The candidate form shared by edit and create, and the create form.
 - `components/shared/` - App header, badges, and the empty, error, and success states.
 - `hooks/` - Data hooks that own every API call (`useCandidateTable`, `useCandidateFeed`, `useCandidateDetail`, `useCandidateNotes`, `useCreateCandidate`).
-- `context/` - `candidate-drafts` (unsaved work across views) and `candidate-updates` (tells the list to refetch after a save).
+- `context/` - `candidate-drafts` (unsaved work across views) and `candidate-dataset` (academy + local candidates, loaded once and shared by the list and details).
 - `lib/api/` - One typed function per endpoint, the shared fetch helper, and runtime response validators.
 - `lib/utils/` - Formatting, form conversion and validation, URL helpers.
 - `types/` - Candidate and note types matching the API.

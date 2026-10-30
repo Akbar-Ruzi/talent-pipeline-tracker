@@ -8,6 +8,7 @@ import {
   EditButton,
 } from "@/components/candidate-detail/detail-card";
 import CandidateForm from "@/components/candidate-form/candidate-form";
+import { NO_PERMISSION } from "@/components/local/no-permission-tooltip";
 import { useCandidateDrafts } from "@/context/candidate-drafts";
 import ErrorState from "@/components/shared/error-state";
 import SuccessMessage from "@/components/shared/success-message";
@@ -39,15 +40,17 @@ import type {
 export default function GeneralInformationCard({
   candidate,
   layout,
+  readOnly,
   onSave,
 }: {
   candidate: Candidate;
   layout: "drawer" | "page";
+  readOnly: boolean; // academy candidate: Edit is shown but locked
   onSave: (payload: UpdateCandidatePayload) => Promise<void>; // PUT, via useCandidateDetail
 }) {
   const { drafts, setDraft, clearDraft } = useCandidateDrafts();
   const draft = drafts[candidate.id]?.general;
-  const editing = draft !== undefined; // a draft means the form is open
+  const editing = !readOnly && draft !== undefined; // a draft means the form is open
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -112,7 +115,11 @@ export default function GeneralInformationCard({
       title="General information"
       action={
         editing ? null : (
-          <EditButton label="Edit general information" onClick={startEditing} />
+          <EditButton
+            label="Edit general information"
+            onClick={startEditing}
+            lockedReason={readOnly ? NO_PERMISSION.edit : undefined}
+          />
         )
       }
     >

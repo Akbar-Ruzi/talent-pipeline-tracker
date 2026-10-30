@@ -1,4 +1,5 @@
 import { STAGE_LABELS, STATUS_LABELS } from "@/lib/constants";
+import type { CandidateSource } from "@/lib/local/types";
 import type { CandidateStage, CandidateStatus } from "@/types/candidate";
 
 const BADGE_BASE =
@@ -54,6 +55,19 @@ export function StageBadge({ stage }: { stage: CandidateStage }) {
         {" "}
         (step {step} of {STAGE_COUNT})
       </span>
+    </span>
+  );
+}
+
+// Phase 1 demo: marks the visitor's own candidates. Academy candidates get
+// no badge (the locked buttons in their details explain they're read-only).
+// Smaller than the status and stage badges, since it's about the data, not
+// the hiring process.
+export function SourceBadge({ source }: { source: CandidateSource }) {
+  if (source !== "local") return null;
+  return (
+    <span className="inline-flex items-center whitespace-nowrap rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">
+      My demo candidate
     </span>
   );
 }

@@ -6,6 +6,7 @@ import {
   DetailCard,
   EditButton,
 } from "@/components/candidate-detail/detail-card";
+import { NO_PERMISSION } from "@/components/local/no-permission-tooltip";
 import { StageBadge, StatusBadge } from "@/components/shared/candidate-badges";
 import ErrorState from "@/components/shared/error-state";
 import { useCandidateDrafts } from "@/context/candidate-drafts";
@@ -29,10 +30,12 @@ import type {
 export default function RecruitmentProgressCard({
   candidate,
   layout,
+  readOnly,
   onSave,
 }: {
   candidate: Candidate;
   layout: "drawer" | "page";
+  readOnly: boolean; // academy candidate: Edit is shown but locked
   onSave: (payload: UpdateCandidateStatusPayload) => Promise<void>; // PATCH, via useCandidateDetail
 }) {
   const isPage = layout === "page";
@@ -40,7 +43,7 @@ export default function RecruitmentProgressCard({
   // The user's choices while editing; the candidate only changes after Save
   const { drafts, setDraft, clearDraft } = useCandidateDrafts();
   const draft = drafts[candidate.id]?.progress;
-  const editing = draft !== undefined; // a draft means the form is open
+  const editing = !readOnly && draft !== undefined; // a draft means the form is open
   const status = draft?.status ?? candidate.status;
   const stage = draft?.stage ?? candidate.stage;
   const setStatus = (next: CandidateStatus) =>
@@ -107,6 +110,7 @@ export default function RecruitmentProgressCard({
           <EditButton
             label="Edit recruitment progress"
             onClick={startEditing}
+            lockedReason={readOnly ? NO_PERMISSION.edit : undefined}
           />
         )
       }

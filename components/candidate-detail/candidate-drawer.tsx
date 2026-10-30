@@ -76,9 +76,17 @@ export default function CandidateDrawer() {
   // The record to load: none while closed or creating
   const recordId = isCreate ? null : candidateId;
 
-  // GET /records/:id; null while the drawer is closed, so nothing is fetched
-  const { candidate, loading, error, retry, updateStatus, updateInfo } =
-    useCandidateDetail(recordId);
+  // GET /records/:id (academy) or localStorage (local); null while the
+  // drawer is closed, so nothing is loaded
+  const {
+    candidate,
+    loading,
+    error,
+    retry,
+    readOnly,
+    updateStatus,
+    updateInfo,
+  } = useCandidateDetail(recordId);
 
   // GET /records/:id/notes for the same ID, loaded alongside the record
   const notes = useCandidateNotes(recordId);
@@ -292,6 +300,7 @@ export default function CandidateDrawer() {
                 <CandidateOverview
                   candidate={candidate}
                   layout="drawer"
+                  readOnly={readOnly}
                   onUpdateStatus={updateStatus}
                   onUpdateInfo={updateInfo}
                 />
@@ -301,6 +310,7 @@ export default function CandidateDrawer() {
                   notes={notes.notes}
                   loading={notes.loading}
                   error={notes.error}
+                  readOnly={notes.readOnly}
                   onRetry={notes.retry}
                   onSave={notes.saveNote}
                   onDelete={notes.removeNote}

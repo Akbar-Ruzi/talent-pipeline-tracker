@@ -48,9 +48,16 @@ export default function CandidateFullPage({
   // The record to load: none while creating
   const recordId = isCreate ? null : id;
 
-  // GET /records/:id for the [id] in the URL
-  const { candidate, loading, error, retry, updateStatus, updateInfo } =
-    useCandidateDetail(recordId);
+  // GET /records/:id (academy) or localStorage (local) for the [id] in the URL
+  const {
+    candidate,
+    loading,
+    error,
+    retry,
+    readOnly,
+    updateStatus,
+    updateInfo,
+  } = useCandidateDetail(recordId);
 
   // GET /records/:id/notes for the same ID, loaded alongside the record
   const notes = useCandidateNotes(recordId);
@@ -179,6 +186,7 @@ export default function CandidateFullPage({
               <CandidateOverview
                 candidate={candidate}
                 layout="page"
+                readOnly={readOnly}
                 onUpdateStatus={updateStatus}
                 onUpdateInfo={updateInfo}
               />
@@ -188,6 +196,7 @@ export default function CandidateFullPage({
                 notes={notes.notes}
                 loading={notes.loading}
                 error={notes.error}
+                readOnly={notes.readOnly}
                 onRetry={notes.retry}
                 onSave={notes.saveNote}
                 onDelete={notes.removeNote}

@@ -1,6 +1,10 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { SubmitEvent } from "react";
 
+import NoPermissionTooltip, {
+  LOCKED_BUTTON,
+  NO_PERMISSION,
+} from "@/components/local/no-permission-tooltip";
 import EmptyState from "@/components/shared/empty-state";
 import ErrorState from "@/components/shared/error-state";
 import SuccessMessage from "@/components/shared/success-message";
@@ -17,6 +21,7 @@ export default function CandidateNotes({
   notes,
   loading,
   error,
+  readOnly,
   onRetry,
   onSave,
   onDelete,
@@ -25,6 +30,7 @@ export default function CandidateNotes({
   notes: Note[];
   loading: boolean;
   error: string | null;
+  readOnly: boolean; // academy candidate: Add Note and Delete shown but locked
   onRetry: () => void; // GET /records/:id/notes again
   onSave: (content: string) => Promise<void>; // POST + add to the list
   onDelete: (note: Note) => Promise<void>; // DELETE + remove from the list
@@ -33,7 +39,7 @@ export default function CandidateNotes({
   // context, so Expand and Drawer View keep them open (with the same text)
   const { drafts, setDraft, clearDraft } = useCandidateDrafts();
   const draft = drafts[candidateId]?.noteDraft;
-  const composerOpen = draft !== undefined;
+  const composerOpen = !readOnly && draft !== undefined;
   // One ID (not a flag per card), so two confirmations can't be open at once
   const confirmingId = drafts[candidateId]?.deletingNoteId;
   const closeConfirmation = () => clearDraft(candidateId, "deletingNoteId");
@@ -114,9 +120,15 @@ export default function CandidateNotes({
         >
           Internal Notes
         </h3>
-        {/* Hidden while the composer is open (one new note at a time) and
-            when empty (the empty state has its own Add Note) */}
-        {!composerOpen && !isEmpty && <AddNoteButton onClick={openComposer} />}
+        {/* Academy candidates: always shown, but locked. Otherwise hidden
+            while the composer is open (one new note at a time) and when
+            empty (the empty state has its own Add Note). */}
+        {readOnly ? (
+          <AddNoteButton lockedReason={NO_PERMISSION.addNote} />
+        ) : (
+          !composerOpen &&
+          !isEmpty && <AddNoteButton onClick={openComposer} />
+        )}
       </div>
       {success && (
         <div className="*:mt-0">
@@ -127,11 +139,12 @@ export default function CandidateNotes({
       {/* No notes: the composer replaces the empty state while typing */}
       {isEmpty && !composerOpen && (
         <div className="*:mt-0">
+          {/* Academy: no action here, the locked Add Note is in the header */}
           <EmptyState
             title="No notes yet"
             description="Notes added after calls or interviews will appear here."
-            actionLabel="Add Note"
-            onAction={openComposer}
+            actionLabel={readOnly ? undefined : "Add Note"}
+            onAction={readOnly ? undefined : openComposer}
           />
         </div>
       )}
@@ -140,9 +153,11 @@ export default function CandidateNotes({
           <NoteCard
             key={note.id}
             note={note}
-            confirming={confirmingId === note.id}
+            confirming={!readOnly && confirmingId === note.id}
             // While a new note is being typed, no deletes: finish that first
             canDelete={!composerOpen}
+            // Academy notes: the trash button is shown but locked
+            lockedReason={readOnly ? NO_PERMISSION.deleteNote : undefined}
             // Opening one confirmation closes any other
             onDeleteStart={() =>
               setDraft(candidateId, "deletingNoteId", note.id)
@@ -164,6 +179,7 @@ function NoteCard({
   note,
   confirming,
   canDelete,
+  lockedReason,
   onDeleteStart,
   onDeleteCancel,
   onDeleteConfirm,
@@ -171,6 +187,7 @@ function NoteCard({
   note: Note;
   confirming: boolean;
   canDelete: boolean; // false while the composer is open
+  lockedReason?: string; // academy note: trash shown but disabled, with a tooltip
   onDeleteStart: () => void;
   onDeleteCancel: () => void;
   onDeleteConfirm: () => Promise<void>; // runs the DELETE request
@@ -284,7 +301,23 @@ function NoteCard({
             ) : (
               <span /> // keeps the trash icon on the right
             )}
-            {canDelete && (
+            {canDelete && lockedReason ? (
+              <NoPermissionTooltip message={lockedReason} placement="above">
+                {(tooltipId) => (
+                  <button
+                    type="button"
+                    aria-disabled="true"
+                    aria-label={
+                      createdAt ? `Delete note from ${createdAt}` : "Delete note"
+                    }
+                    aria-describedby={tooltipId}
+                    className={`-m-1.5 rounded-lg p-1.5 text-slate-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 ${LOCKED_BUTTON}`}
+                  >
+                    <TrashIcon className="size-4" />
+                  </button>
+                )}
+              </NoPermissionTooltip>
+            ) : canDelete && (
               <button
                 ref={trashRef}
                 type="button"
@@ -323,14 +356,19 @@ function TrashIcon({ className }: { className: string }) {
   );
 }
 
-// Blue primary action, like Add candidate on the list page
-function AddNoteButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-blue-600 px-3.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
-    >
+// Blue primary action, like Add candidate on the list page.
+// lockedReason (academy candidates): shown but disabled, with a tooltip.
+function AddNoteButton({
+  onClick,
+  lockedReason,
+}: {
+  onClick?: () => void;
+  lockedReason?: string;
+}) {
+  const className =
+    "inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-blue-600 px-3.5 text-sm font-semibold text-white shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500";
+  const content = (
+    <>
       <svg
         aria-hidden="true"
         viewBox="0 0 24 24"
@@ -343,6 +381,33 @@ function AddNoteButton({ onClick }: { onClick: () => void }) {
         <path d="M12 5v14M5 12h14" />
       </svg>
       Add Note
+    </>
+  );
+
+  if (lockedReason) {
+    return (
+      <NoPermissionTooltip message={lockedReason}>
+        {(tooltipId) => (
+          <button
+            type="button"
+            aria-disabled="true"
+            aria-describedby={tooltipId}
+            className={`${className} ${LOCKED_BUTTON}`}
+          >
+            {content}
+          </button>
+        )}
+      </NoPermissionTooltip>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`${className} hover:bg-blue-700`}
+    >
+      {content}
     </button>
   );
 }

@@ -15,7 +15,9 @@ function isStoredNote(item: unknown): item is Note {
   return isNote(item) && isLocalId(item.id) && isLocalId(item.record_id);
 }
 
-function listAllLocalNotes(): Note[] {
+// Every local note. The same array while storage is unchanged, so it can be
+// a useSyncExternalStore snapshot (listLocalNotes filters into a new one)
+export function listAllLocalNotes(): Note[] {
   return readList(NOTES_KEY, isStoredNote);
 }
 

@@ -11,11 +11,13 @@ import type {
 export default function CandidateOverview({
   candidate,
   layout,
+  readOnly,
   onUpdateStatus,
   onUpdateInfo,
 }: {
   candidate: Candidate;
   layout: "drawer" | "page";
+  readOnly: boolean; // academy candidate: no Edit buttons
   onUpdateStatus: (payload: UpdateCandidateStatusPayload) => Promise<void>; // PATCH
   onUpdateInfo: (payload: UpdateCandidatePayload) => Promise<void>; // PUT
 }) {
@@ -24,11 +26,13 @@ export default function CandidateOverview({
       <RecruitmentProgressCard
         candidate={candidate}
         layout={layout}
+        readOnly={readOnly}
         onSave={onUpdateStatus}
       />
       <GeneralInformationCard
         candidate={candidate}
         layout={layout}
+        readOnly={readOnly}
         onSave={onUpdateInfo}
       />
     </div>

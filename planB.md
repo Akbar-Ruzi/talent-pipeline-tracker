@@ -207,13 +207,23 @@ Work on branch `feature/portfolio-demo`. Commit after each step (conventional co
 
 ### Step 5 — Source-aware details, notes, create
 
-- [ ] **5.1** `useCandidateDetail`: a local ID reads from the dataset or storage and `updateInfo`/`updateStatus` call the local functions. An academy ID uses `getRecord`, and `updateInfo`/`updateStatus` throw `"You can only edit candidates you created."` (the same message as `assertLocalId`). Return `readOnly: boolean`. Unknown local ID (removed by Reset Demo, or from another browser) → existing not-found/error state.
-- [ ] **5.2** `useCandidateNotes`: local → `listLocalNotes`/`createLocalNote`/`deleteLocalNote`; academy → `getNotes`, and save/remove throw. Return `readOnly`.
-- [ ] **5.3** `useCreateCandidate`: call `createLocalCandidate` and then `notifyCandidateSaved()`. Expose `limitReached` and `localCount`.
-- [ ] **5.4** UI read-only states: pass `readOnly` to `general-information-card.tsx` and `recruitment-progress-card.tsx` (hide Edit) and to `candidate-notes.tsx` (hide composer and delete icons; show "Academy notes are read-only"). Use them in both `candidate-drawer.tsx` and `candidate-full-page.tsx`.
-- [ ] **5.5** `SourceBadge` in `candidate-table.tsx`, `candidate-cards.tsx` and `candidate-header.tsx`.
-- [ ] **5.6** Limit UX: the Add Candidate button in `candidates-header.tsx` is disabled at 10/10 with a tooltip/help text. `create-candidate-form.tsx` shows a "limit reached" message instead of the form when opened via `?candidate=new` or `/candidates/new` at the limit.
-- [ ] **5.7** Remove the write imports from the hooks. Add an ESLint `no-restricted-imports` rule (paths `@/lib/api/records` → `createRecord`, `updateRecord`, `updateRecordStatus`; `@/lib/api/notes` → `createNote`, `deleteNote`) for all files outside `lib/api/`. `npm run lint` must pass.
+- [x] **5.1** `useCandidateDetail`: a local ID reads from the dataset or storage and `updateInfo`/`updateStatus` call the local functions. An academy ID uses `getRecord`, and `updateInfo`/`updateStatus` throw `"You can only edit candidates you created."` (the same message as `assertLocalId`). Return `readOnly: boolean`. Unknown local ID (removed by Reset Demo, or from another browser) → existing not-found/error state.
+  - Done. A local candidate is found in the dataset, so an edit shows in the details and the list with no extra state. The dataset now also exposes `localReady` (false on the server and during hydration), so a local ID shows the skeleton, not "not found", before storage is read. A missing local ID shows the error state without Retry (`retry: undefined`).
+- [x] **5.2** `useCandidateNotes`: local → `listLocalNotes`/`createLocalNote`/`deleteLocalNote`; academy → `getNotes`, and save/remove throw. Return `readOnly`.
+  - Done. Local notes come from `useSyncExternalStore` over `listAllLocalNotes` (now exported: `listLocalNotes` filters into a new array, which can't be a snapshot), filtered per candidate. Other tabs' changes show too.
+- [x] **5.3** `useCreateCandidate`: call `createLocalCandidate` and then `notifyCandidateSaved()`. Expose `limitReached` and `localCount`.
+  - **Changed:** no `notifyCandidateSaved()`. Local writes notify the dataset through the storage subscription, so nothing reads `saveCount` in Phase 1. `context/candidate-updates.tsx` is **kept for Phase 2** (unused for now); its provider was taken out of `app/layout.tsx`.
+- [x] **5.4** UI read-only states: pass `readOnly` to `general-information-card.tsx` and `recruitment-progress-card.tsx` (hide Edit) and to `candidate-notes.tsx` (hide composer and delete icons; show "Academy notes are read-only"). Use them in both `candidate-drawer.tsx` and `candidate-full-page.tsx`.
+  - **Changed (your decision):** academy candidates keep their Edit, Add Note and Delete Note buttons, but they are **disabled** and show a "You don't have permission…" tooltip on hover, focus or tap (`components/local/no-permission-tooltip.tsx`). No "Academy notes are read-only" text. The buttons use `aria-disabled` (not `disabled`), so keyboard and touch users can still focus them and see the tooltip. The hooks still throw for academy IDs.
+  - Passed via `candidate-overview.tsx`. A leftover draft can't open a form on a read-only candidate (`editing` and `composerOpen` also check `readOnly`).
+- [x] **5.5** `SourceBadge` in `candidate-table.tsx`, `candidate-cards.tsx` and `candidate-header.tsx`.
+  - Done, in `candidate-badges.tsx`. **Changed (your decision):** only local candidates get a badge ("My demo candidate"); academy candidates show none (no "Academy · read-only"). The table and cards take `SourcedCandidate[]`; the header reads the source from the ID, since academy details come straight from `getRecord`.
+- [x] **5.6** Limit UX: the Add Candidate button in `candidates-header.tsx` is disabled at 10/10 with a tooltip/help text. `create-candidate-form.tsx` shows a "limit reached" message instead of the form when opened via `?candidate=new` or `/candidates/new` at the limit.
+  - Done. Visible help text under the button (a disabled button gets no tooltip on touch screens), linked with `aria-describedby`. The form's limit message isn't shown while saving, so creating the 10th candidate still shows its success message. Both texts mention Reset Demo, which Step 6.1 adds.
+- [x] **5.7** Remove the write imports from the hooks. Add an ESLint `no-restricted-imports` rule (paths `@/lib/api/records` → `createRecord`, `updateRecord`, `updateRecordStatus`; `@/lib/api/notes` → `createNote`, `deleteNote`) for all files outside `lib/api/`. `npm run lint` must pass.
+  - Done. Checked that importing `createRecord` in a hook fails lint while `getRecord` passes. Lint, `tsc --noEmit` and build pass.
+  - Note for 6.4: the grep also matches the comments in `lib/local/local-candidates.ts` and `local-notes.ts` that name the API functions. Grep for imports only, or reword those comments.
+- [ ] **5.8** Manually check in the browser: local create, edit, and add/delete notes in the drawer and the full page; an academy candidate shows Edit, Add Note and delete as disabled, with the permission tooltip on hover (desktop) and tap (phone); the 10/10 limit; the badges at all widths.
 
 **Done when:** local create, edit, and add/delete notes work in drawer and full page, academy records show no edit controls, and lint blocks academy writes. Commit `feat: make academy records read-only and store visitor candidates locally`.
 
@@ -228,7 +238,7 @@ Work on branch `feature/portfolio-demo`. Commit after each step (conventional co
   - [ ] Pagination counts are correct; after Reset Demo, a page that no longer exists jumps back to the last valid page
   - [ ] Mobile infinite scroll: no duplicates, resets on filter change, new local candidate appears, scroll position restored after the full page
   - [ ] Drawer ↔ expand to full page ↔ back keeps filters, page and drafts; no expand control on mobile
-  - [ ] Academy candidate: no Edit, Add Note or Delete Note; notes visible
+  - [ ] Academy candidate: Edit, Add Note and Delete Note disabled with the permission tooltip, and clicking them does nothing; notes visible
   - [ ] Local candidate: no Delete Candidate and no note editing anywhere (same as API)
   - [ ] Reset Demo → local candidates and their notes gone, only `talent-tracker:*` keys cleared; academy list unchanged
   - [ ] Block the API host in DevTools → local demo still works and the academy error + Retry shows

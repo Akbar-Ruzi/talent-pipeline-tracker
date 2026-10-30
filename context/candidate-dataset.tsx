@@ -26,6 +26,9 @@ type CandidateDataset = {
   // Local first (newest on top), then academy in the API's order
   candidates: SourcedCandidate[];
   localCount: number;
+  // false on the server and during hydration, when the local list is still
+  // the empty server snapshot: a local ID isn't "not found" yet
+  localReady: boolean;
   academyLoading: boolean;
   // The local candidates still show while this is set
   academyError: string | null;
@@ -41,6 +44,8 @@ const CandidateDatasetContext = createContext<CandidateDataset | null>(null);
 const NO_CANDIDATES: Candidate[] = [];
 const getServerSnapshot = () => NO_CANDIDATES;
 
+// For localReady: nothing to subscribe to, only server vs. client snapshot
+const subscribeNever = () => () => {};
 export function CandidateDatasetProvider({
   children,
 }: {
@@ -51,6 +56,11 @@ export function CandidateDatasetProvider({
     subscribe,
     listLocalCandidates,
     getServerSnapshot,
+  );
+  const localReady = useSyncExternalStore(
+    subscribeNever,
+    () => true,
+    () => false,
   );
 
   const [academy, setAcademy] = useState<Candidate[]>([]);
@@ -105,12 +115,13 @@ export function CandidateDatasetProvider({
     () => ({
       candidates,
       localCount: local.length,
+      localReady,
       academyLoading,
       academyError,
       academyTruncated,
       retryAcademy,
     }),
-    [candidates, local.length, academyLoading, academyError, academyTruncated, retryAcademy],
+    [candidates, local.length, localReady, academyLoading, academyError, academyTruncated, retryAcademy],
   );
 
   return (
