@@ -1,137 +1,46 @@
-import { useEffect, useEffectEvent, useRef, useState } from "react";
-import type { Candidate, ListFilters } from "@/types/candidate";
-import { getRecords } from "@/lib/api/records";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
+import type { ListFilters } from "@/types/candidate";
+import { useCandidateDataset } from "@/context/candidate-dataset";
+import { queryCandidates } from "@/lib/local/query";
 import { PAGE_SIZE } from "@/lib/constants";
 
 /**
  * -------------Mobile cards------------
  * a feed that grows as the user scrolls.
- * Each new page is added to the end; already-loaded cards stay.
+ * Phase 1 demo: every matching candidate is already in the combined academy +
+ * local list, so "loading more" only shows the next PAGE_SIZE of them.
+ * Already-shown cards stay.
  */
-type CandidateFeedOptions = ListFilters & {
-  saveCount: number; // changes after a candidate is saved → reload the loaded pages
-};
-
-export function useCandidateFeed({
-  status,
-  stage,
-  search,
-  saveCount,
-}: CandidateFeedOptions) {
-  const [candidates, setCandidates] = useState<Candidate[]>([]); //  holds all cards loaded so far, and only grows.
-  const [total, setTotal] = useState(0);// is the count from the API (100), used to know when to stop.
-  const [lastPage, setLastPage] = useState(0); // the last page added, so the next request is lastPage + 1.
-  const [loading, setLoading] = useState(true); // first page is loading
-  const [error, setError] = useState<string | null>(null); // first page failed
-  const [loadingMore, setLoadingMore] = useState(false); // next page is loading
-  const [loadMoreError, setLoadMoreError] = useState<string | null>(null); // last next page failed
-  const [ended, setEnded] = useState(false); // a page came back empty: nothing more to load
-  const [reloadKey, setReloadKey] = useState(0); // a counter; bumping it re-runs the first-page effect
-  // a "busy" flag kept as a ref instead of state, because a ref updates instantly. If the observer fires twice in a row,  
-  // the second call sees true and stops. State wouldn't change until the next render, so both calls could get through. 
-  const loadingMoreRef = useRef(false); // updates instantly, unlike state, so two quick calls can't both start
+export function useCandidateFeed({ status, stage, search }: ListFilters) {
+  const { candidates, academyLoading, academyError, retryAcademy } =
+    useCandidateDataset();
+  // How many matching cards are shown; grows by PAGE_SIZE as the user scrolls
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const loadMoreAreaRef = useRef<HTMLDivElement>(null); //  points at the <div> around <LoadMore>, the element the scroll watcher looks at.
-  // Which list is current. Bumped each time the first page reloads, so a
-  // loadMore reply that started for an older list can tell it's out of date.
-  const listIdRef = useRef(0);
-  // cacheComponents keeps this page alive (hidden in React <Activity>) while the
-  // user is on a candidate's full page. State survives, but effects re-run when
-  // the page shows again. loadedKeyRef remembers which filters page 1 was loaded
-  // for, so that re-run doesn't refetch page 1 and throw away the extra pages.
-  const loadedKeyRef = useRef<string | null>(null);
   const savedScrollRef = useRef<number | null>(null); // scroll position when a card was opened
-  // The saveCount the cards were last loaded for; a different value means a
-  // candidate was saved since, so the shown pages need a refresh
-  const refreshedCountRef = useRef(saveCount);
 
-  // Search or filters changed → throw away the old cards and show the skeleton.
-  // Done during render (not in an effect), so old cards are never shown under the new filters.
+  // Search or filters changed → start again from the first PAGE_SIZE cards.
+  // Done during render (not in an effect), so the old count is never shown under the new filters.
+  // A local create or edit keeps visibleCount, so the cards the user scrolled to stay put.
   const filterKey = `${status ?? ""}|${stage ?? ""}|${search ?? ""}`;
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey);
-    setCandidates([]);
-    setTotal(0);
-    setLastPage(0);
-    setLoading(true);
-    setError(null);
-    setLoadingMore(false);
-    setLoadMoreError(null);
-    setEnded(false);
+    setVisibleCount(PAGE_SIZE);
   }
 
-  // First page: its own request, independent of the table
-  useEffect(() => {
-    // Page shown again after the full page: the cards are still here, keep them
-    const loadKey = `${filterKey}|${reloadKey}`;
-    if (loadedKeyRef.current === loadKey) return;
+  const matches = useMemo(
+    () => queryCandidates(candidates, { status, stage, search }),
+    [candidates, status, stage, search],
+  );
+  const shown = useMemo(
+    () => matches.slice(0, visibleCount),
+    [matches, visibleCount],
+  );
 
-    listIdRef.current += 1; // a new list starts; older loadMore replies no longer belong to it
-    loadingMoreRef.current = false; // an old loadMore still in flight must not block the new list
-    let ignore = false; // only the latest request updates the feed
-
-    async function load() {
-      try {
-        const response = await getRecords({ page: 1, limit: PAGE_SIZE, status, stage, search });
-        if (!ignore) {
-          loadedKeyRef.current = loadKey;
-          setCandidates(response.data);
-          setTotal(response.total);
-          setLastPage(1);
-          setError(null);
-          setLoadMoreError(null);
-          setEnded(false);
-        }
-      } catch (err) {
-        if (!ignore) {
-          setError(
-            err instanceof Error ? err.message : "Could not load candidates.",
-          );
-        }
-      } finally {
-        if (!ignore) setLoading(false);
-      }
-    }
-    load();
-    return () => {
-      ignore = true;
-    };
-  }, [reloadKey, status, stage, search, filterKey]);
-
-  // After a save: reload every page already shown (1…lastPage) in place.
-  // Reloading only page 1 would drop the extra pages and lose the scroll spot.
-  // While the full page is open this page is hidden and its effects are off,
-  // so this runs when the user comes back, before they see the old cards.
-  useEffect(() => {
-    if (refreshedCountRef.current === saveCount) return; // nothing saved since
-    if (lastPage === 0) return; // page 1 is still loading: it gets fresh data anyway
-
-    const listId = listIdRef.current;
-    let ignore = false;
-    async function refresh() {
-      try {
-        const pages = await Promise.all(
-          Array.from({ length: lastPage }, (_, index) =>
-            getRecords({ page: index + 1, limit: PAGE_SIZE, status, stage, search }),
-          ),
-        );
-        if (ignore || listId !== listIdRef.current) return; // filters changed meanwhile
-        // Marked done only after it worked. In dev React runs effects twice;
-        // marking it at the start would let the cancelled first run block the second.
-        refreshedCountRef.current = saveCount;
-        setCandidates(pages.flatMap((response) => response.data));
-        setTotal(pages[0].total);
-      } catch {
-        // Keep the cards on screen: they are only out of date, not wrong to show
-      }
-    }
-    refresh();
-    return () => {
-      ignore = true; // e.g. loadMore added a page: the next run reloads it too
-    };
-  }, [saveCount, lastPage, status, stage, search]);
-
-  // Runs on mount and again each time the page shows after the full page.
+  // cacheComponents keeps this page alive (hidden in React <Activity>) while the
+  // user is on a candidate's full page. State survives, so visibleCount and the
+  // cards are still here; this effect re-runs when the page shows again.
   // Navigation scrolls to the top, so scroll back to where the card was opened.
   // Two frames, so it runs after the navigation's own scroll.
   useEffect(() => {
@@ -153,82 +62,44 @@ export function useCandidateFeed({
     savedScrollRef.current = window.scrollY;
   };
 
-  const loadMore = async () => {
-    // Guards: one request at a time, stop at the end
-    if (loadingMoreRef.current || ended || candidates.length >= total) return;
-
-    const nextPage = lastPage + 1; // computed once, used for the request and the state
-    const listId = listIdRef.current; // the list this request belongs to
-    const isOutdated = () => listId !== listIdRef.current; // filters changed while waiting
-    loadingMoreRef.current = true;
-    setLoadingMore(true);
-    setLoadMoreError(null);
-    try {
-      const response = await getRecords({ page: nextPage, limit: PAGE_SIZE, status, stage, search });
-      if (isOutdated()) return; // drop it: these cards belong to the old filters
-      if (response.data.length === 0) {
-        setEnded(true); // past the last page (candidates were removed): stop here
-      } else {
-        setCandidates((prev) => [...prev, ...response.data]); // add to the end
-        setLastPage(nextPage);
-      }
-    } catch (err) {
-      if (isOutdated()) return; // an old list's error must not show under the new one
-      setLoadMoreError(
-        err instanceof Error ? err.message : "Could not load more candidates.",
-      ); // already-loaded cards stay on screen
-    } finally {
-      // Only the current list's request may clear the busy flag;
-      // otherwise an old reply could unlock it while a new loadMore is running.
-      if (!isOutdated()) {
-        loadingMoreRef.current = false;
-        setLoadingMore(false);
-      }
-    }
-  };
-
-  const retry = () => {
-    setLoading(true); // show the skeleton again
-    setError(null);
-    setReloadKey((k) => k + 1); // new value → the first-page effect runs again
+  const loadMore = () => {
+    if (visibleCount >= matches.length) return; // everything is shown
+    // Not a functional update: if the observer fires twice before a render,
+    // both calls set the same value, so no page is skipped
+    setVisibleCount(visibleCount + PAGE_SIZE);
   };
 
   // Called by the observer. useEffectEvent always sees the latest state,
   // so the observer doesn't need to be recreated when loadMore changes.
-  // onLoadMoreAreaVisible decides what "visible" means for the app.
-  // If the callback called loadMore() directly, it would keep the loadMore from that first render, with old candidates, lastPage and loadMoreError. 
-  // Wrapping the logic in useEffectEvent gives the callback a function that always reads the latest state, without recreating the observer each time state changes.
-  const onLoadMoreAreaVisible = useEffectEvent(() => {
-    if (loadMoreError) return; // after a failure only "Try again" retries
-    loadMore();
-  });
+  const onLoadMoreAreaVisible = useEffectEvent(() => loadMore());
   /* The flow is: the observer sees the area → its callback checks it's visible → it calls onLoadMoreAreaVisible → that calls loadMore(). */
   useEffect(() => {
     const area = loadMoreAreaRef.current;
     if (!area) return; // the cards aren't on screen (loading, error, or empty)
     // An IntersectionObserver is observer,  watches the area under the last card. When that area comes within 200px of the screen (rootMargin),
-    //  it loads the next page, so new cards are usually ready before the user reaches the bottom.
+    //  it shows the next cards, so they are usually ready before the user reaches the bottom.
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) onLoadMoreAreaVisible();// Runs on every report and checks isIntersecting, meaning "is the area visible now?"
       },
-      { rootMargin: "200px" }, // start loading a little before the user reaches the end
+      { rootMargin: "200px" }, // start a little before the user reaches the end
     );
     observer.observe(area);
     return () => observer.disconnect();
     // loading/error: the area only exists once the cards are shown.
-    // candidates.length: re-observe after each page, so if the area is
-    // still in view the observer reports it again and the next page loads.
-  }, [loading, error, candidates.length]);
+    // shown.length: re-observe after each batch, so if the area is
+    // still in view the observer reports it again and the next batch shows.
+  }, [academyLoading, academyError, shown.length]);
 
   return {
-    candidates,
-    total: ended ? candidates.length : total, // after an empty page, what we have is everything
-    loading,
-    error,
-    retry,
-    loadingMore,
-    loadMoreError,
+    candidates: shown,
+    total: matches.length,
+    loading: academyLoading,
+    error: academyError,
+    retry: retryAcademy,
+    // Kept so <LoadMore> works unchanged: slicing a loaded list can't be slow or fail
+    loadingMore: false,
+    loadMoreError: null,
     loadMore,
     rememberScroll, // call when a card opens the full page
     loadMoreAreaRef, // attach to the wrapper around <LoadMore>

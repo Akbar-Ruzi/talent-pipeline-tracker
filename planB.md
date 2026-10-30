@@ -195,8 +195,12 @@ Work on branch `feature/portfolio-demo`. Commit after each step (conventional co
 
 ### Step 4 — Switch the list hooks (no visual change yet)
 
-- [ ] **4.1** `useCandidateTable`: replace `getRecords` with `pageSlice(queryCandidates(...))`. Keep the return shape (`result: CandidateListResponse`, `loading`, `error`, `retry`) and the existing out-of-range jump via `onPageOutOfRange`. A local create, edit or Reset Demo updates the list right away without a skeleton flash.
-- [ ] **4.2** `useCandidateFeed`: keep the IntersectionObserver, `rememberScroll` and scroll restore. Replace the page requests with `visibleCount` (+`PAGE_SIZE` per `loadMore`). A filter change resets it to `PAGE_SIZE`; a local change keeps `visibleCount`, so the cards stay put. Remove the now-unused multi-page refresh logic and its refs.
+- [x] **4.1** `useCandidateTable`: replace `getRecords` with `pageSlice(queryCandidates(...))`. Keep the return shape (`result: CandidateListResponse`, `loading`, `error`, `retry`) and the existing out-of-range jump via `onPageOutOfRange`. A local create, edit or Reset Demo updates the list right away without a skeleton flash.
+  - Done. `loading`/`error`/`retry` now come from the dataset's academy state. The out-of-range jump waits until the academy has loaded (before that only local candidates are counted).
+- [x] **4.2** `useCandidateFeed`: keep the IntersectionObserver, `rememberScroll` and scroll restore. Replace the page requests with `visibleCount` (+`PAGE_SIZE` per `loadMore`). A filter change resets it to `PAGE_SIZE`; a local change keeps `visibleCount`, so the cards stay put. Remove the now-unused multi-page refresh logic and its refs.
+  - Done. Removed `loadedKeyRef`, `listIdRef`, `loadingMoreRef`, `refreshedCountRef` and the multi-page refresh. `loadingMore: false` / `loadMoreError: null` are still returned, so `load-more.tsx` is unchanged.
+  - `saveCount` is no longer passed to the list hooks (`candidate-list.tsx`); local saves reach the list through the dataset's storage subscription. Nothing reads `saveCount` now. Step 5 decides whether `candidate-updates.tsx` is still needed.
+  - Known gap until Step 5: academy create/edit still call the API, and the list doesn't show those changes until a page reload (the academy is loaded once). Step 5 removes academy writes, which closes it.
 - [ ] **4.3** Manually check at desktop, tablet and phone widths: search, filters, pagination and infinite scroll show the same order and counts as before (local list is empty at this point).
 
 **Done when:** the app looks and behaves exactly as before, with combined data under the hood. Commit `refactor: run list search, filters and paging on the combined dataset`.
