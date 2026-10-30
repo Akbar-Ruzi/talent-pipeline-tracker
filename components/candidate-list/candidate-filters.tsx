@@ -64,6 +64,9 @@ export default function CandidateFilters({
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search by name or email..."
             className="h-12 w-full rounded-lg border border-slate-200 bg-white pl-12 pr-4 text-slate-900 shadow-sm placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            // Chrome on iOS adds __gcruniqueid to form fields before React
+            // loads (autofill). Same on the two selects below.
+            suppressHydrationWarning
           />
         </label>
 
@@ -74,6 +77,7 @@ export default function CandidateFilters({
               value={status ?? ""}
               onChange={(e) => onFilterChange("status", e.target.value)}
               className={SELECT_CLASSES}
+              suppressHydrationWarning
             >
               <option value="">All statuses</option>
               {Object.entries(STATUS_LABELS).map(([value, label]) => (
@@ -91,6 +95,7 @@ export default function CandidateFilters({
               value={stage ?? ""}
               onChange={(e) => onFilterChange("stage", e.target.value)}
               className={SELECT_CLASSES}
+              suppressHydrationWarning
             >
               <option value="">All stages</option>
               {Object.entries(STAGE_LABELS).map(([value, label]) => (

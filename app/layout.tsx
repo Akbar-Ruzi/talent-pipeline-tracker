@@ -26,6 +26,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      // Some browsers add attributes to <html> before React loads (e.g.
+      // Chrome on iOS adds __gcrremoteframetoken). Only this tag's own
+      // attributes are ignored, not its children.
+      suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
         {/* Public demo: academy + local candidates, loaded once for all views.

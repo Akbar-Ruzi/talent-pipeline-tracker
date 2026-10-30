@@ -61,6 +61,16 @@ export default function CandidateList() {
     <EmptyState title="No candidates yet" />
   );
 
+  // Phase 1 demo: the academy failed but the visitor's own candidates are
+  // in this browser, so they still show, under this smaller error
+  const academyErrorNotice = (error: string, onRetry: () => void) => (
+    <ErrorState
+      title="Could not load academy candidates"
+      message={`${error} Only your demo candidates are shown.`}
+      onRetry={onRetry}
+    />
+  );
+
   const handlePageChange = (nextPage: number) => {
     window.scrollTo({ top: 0, behavior: "smooth" });
     setPage(nextPage);
@@ -84,7 +94,7 @@ export default function CandidateList() {
       <div className="md:hidden">
         {feed.loading ? (
           <CandidateListSkeleton />
-        ) : feed.error ? (
+        ) : feed.error && feed.total === 0 ? (
           <ErrorState
             title="Could not load candidates"
             message={feed.error}
@@ -94,6 +104,11 @@ export default function CandidateList() {
           emptyState
         ) : (
           <section className="mt-4" aria-label="Candidates">
+            {feed.error && (
+              <div className="mb-4 *:mt-0">
+                {academyErrorNotice(feed.error, feed.retry)}
+              </div>
+            )}
             <p className="mb-3 text-sm font-semibold text-slate-500">
               {feed.total} candidates
             </p>
@@ -118,30 +133,33 @@ export default function CandidateList() {
       <div className="hidden md:block">
         {table.loading ? (
           <CandidateListSkeleton />
-        ) : table.error ? (
+        ) : table.error && table.result.total === 0 ? (
           <ErrorState
             title="Could not load candidates"
             message={table.error}
             onRetry={table.retry}
           />
-        ) : table.result && table.result.total === 0 ? (
+        ) : table.result.total === 0 ? (
           emptyState
-        ) : table.result ? (
-          <section
-            className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
-            aria-label="Candidates"
-          >
-            <CandidateTable candidates={table.result.data} />
-            <div className="border-t border-slate-200 px-6 py-4 lg:px-8">
-              <Pagination
-                total={table.result.total}
-                page={page}
-                limit={PAGE_SIZE}
-                onPageChange={handlePageChange}
-              />
-            </div>
-          </section>
-        ) : null}
+        ) : (
+          <>
+            {table.error && academyErrorNotice(table.error, table.retry)}
+            <section
+              className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+              aria-label="Candidates"
+            >
+              <CandidateTable candidates={table.result.data} />
+              <div className="border-t border-slate-200 px-6 py-4 lg:px-8">
+                <Pagination
+                  total={table.result.total}
+                  page={page}
+                  limit={PAGE_SIZE}
+                  onPageChange={handlePageChange}
+                />
+              </div>
+            </section>
+          </>
+        )}
       </div>
     </>
   );

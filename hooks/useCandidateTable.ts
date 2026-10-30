@@ -39,9 +39,10 @@ export function useCandidateTable({
   // Out of range: candidates exist (total > 0) but this page is empty,
   // e.g. ?page=99, an old bookmark, or fewer results after candidates were removed.
   // Not while the academy loads: only the local candidates are counted then.
+  // After an academy error the local candidates are all there is, so a page
+  // past them jumps back too.
   const isOutOfRange =
     !academyLoading &&
-    !academyError &&
     result.total > 0 &&
     result.data.length === 0 &&
     page > 1;
